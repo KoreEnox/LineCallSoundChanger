@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <!-- Beta versions will have -beta suffix -->
+    <VersionSuffix Condition="'$(IsBeta)' == 'true'">beta$(BuildNumber)</VersionSuffix>
+    <!-- Release versions won't have a suffix -->
+    <AssemblyVersion>$(VersionPrefix)</AssemblyVersion>
+    <FileVersion>$(VersionPrefix)</FileVersion>
+    <Company>LineCallSoundChanger Team</Company>
+  </PropertyGroup>
+</Project>

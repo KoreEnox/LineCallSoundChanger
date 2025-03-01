@@ -1,0 +1,115 @@
+﻿name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.0.0)'
+        required: true
+      is_beta:
+        description: 'Is this a beta release?'
+        type: boolean
+        default: false
+        required: true
+
+jobs:
+  create_release:
+    runs-on: windows-latest
+    env:
+      Solution_Name: LineCallSoundChanger.sln
+      Project_Path: LineCallSoundChanger/LineCallSoundChanger.csproj
+      Configuration: Release
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+        
+    - name: Set Version Variables
+      id: version
+      run: |
+        $isBeta = '${{ github.event.inputs.is_beta }}' -eq 'true'
+        $version = '${{ github.event.inputs.version }}'
+        $versionSuffix = $isBeta ? "beta" : ""
+        $tagName = $isBeta ? "v$version-beta" : "v$version"
+        $releaseName = $isBeta ? "LineCallSoundChanger v$version Beta" : "LineCallSoundChanger v$version"
+        $zipFileName = $isBeta ? "LineCallSoundChanger-beta-$version.zip" : "LineCallSoundChanger-$version.zip"
+        $exeFileName = "LineCallSoundChanger.exe"
+        
+        echo "TAG_NAME=$tagName" >> $env:GITHUB_ENV
+        echo "RELEASE_NAME=$releaseName" >> $env:GITHUB_ENV
+        echo "ZIP_FILE_NAME=$zipFileName" >> $env:GITHUB_ENV
+        echo "EXE_FILE_NAME=$exeFileName" >> $env:GITHUB_ENV
+        echo "VERSION_SUFFIX=$versionSuffix" >> $env:GITHUB_ENV
+        echo "IS_BETA=$isBeta" >> $env:GITHUB_ENV
+      shell: pwsh
+      
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.Solution_Name }}
+      
+    - name: Build
+      run: dotnet build ${{ env.Solution_Name }} --configuration ${{ env.Configuration }} -p:Version=${{ github.event.inputs.version }} --no-restore
+      
+    - name: Publish Windows App
+      run: |
+        dotnet publish ${{ env.Project_Path }} `
+          --configuration ${{ env.Configuration }} `
+          --runtime win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:PublishReadyToRun=true `
+          -p:DebugType=embedded `
+          -p:Version=${{ github.event.inputs.version }} `
+          -p:IsBeta=${{ env.IS_BETA }} `
+          -p:VersionSuffix=${{ env.VERSION_SUFFIX }} `
+          --output ./publish
+      shell: pwsh
+      
+    - name: Create ZIP artifact
+      run: |
+        Compress-Archive -Path ./publish/* -DestinationPath ./${{ env.ZIP_FILE_NAME }}
+      shell: pwsh
+      
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        # Get commit messages since last tag
+        $recentCommits = git log --pretty=format:"- %s" -n 10
+        
+        $templateContent = @"
+        # LineCallSoundChanger ${{ github.event.inputs.version }} ${{ env.IS_BETA == 'true' && 'Beta' || 'Release' }}
+
+        ${{ env.IS_BETA == 'true' && '> ⚠️ This is a beta release and may contain bugs or incomplete features.' || '' }}
+
+        ## What's New
+        $recentCommits
+
+        ## Installation
+        Download the zip file or standalone executable and run it.
+
+        ## Feedback
+        Please report any issues you encounter.
+        "@
+
+        $templateContent | Out-File -FilePath release-notes.md -Encoding utf8
+      shell: pwsh
+      
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        name: ${{ env.RELEASE_NAME }}
+        body_path: release-notes.md
+        draft: false
+        prerelease: ${{ env.IS_BETA }}
+        files: |
+          ./publish/LineCallSoundChanger.exe
+          ./${{ env.ZIP_FILE_NAME }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
