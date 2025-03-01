@@ -11,7 +11,6 @@
     <Product>Line Call Sound Changer</Product>
     <Description>An application to customize Line call sounds</Description>
     <Copyright>Copyright © 2025</Copyright>
-    <ApplicationIcon>app.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
